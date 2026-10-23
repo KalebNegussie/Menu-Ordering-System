@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Table QR Codes</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="menu.js"></script>
+</head>
+<body>
+<header class="top no-print"><div><h1>Table QR codes</h1><p class="sub">Print, cut, and place one on each table</p></div></header>
+<div class="qr-tools no-print">
+  <label>Menu link (auto-filled — change only if needed)
+    <input id="base">
+  </label>
+  <div class="row" style="gap:10px">
+    <label style="flex:1;margin:0">Number of tables <input id="count" type="number" min="1" max="200"></label>
+    <button id="make" class="btn primary" style="margin-top:22px">Update</button>
+    <button onclick="print()" class="btn" style="margin-top:22px">Print</button>
+  </div>
+  <p class="muted" style="font-size:.85rem">Staff screen: <a id="staffLink"></a></p>
+</div>
+<div class="qr-grid" id="grid"></div>
+
+<script>
+const R = window.RESTAURANT;
+const here = location.href.split("?")[0].split("#")[0];
+const dir = here.substring(0, here.lastIndexOf("/") + 1);
+document.getElementById("base").value = dir + "index.html";
+document.getElementById("count").value = R.tables;
+const sl = document.getElementById("staffLink"); sl.href = sl.textContent = dir + "staff.html";
+
+function make() {
+  const base = document.getElementById("base").value.trim();
+  const n = Math.min(200, Math.max(1, parseInt(document.getElementById("count").value) || 1));
+  const grid = document.getElementById("grid"); grid.innerHTML = "";
+  for (let t = 1; t <= n; t++) {
+    const url = base + (base.includes("?") ? "&" : "?") + "table=" + t;
+    const card = document.createElement("div");
+    card.className = "qr-card";
+    card.innerHTML = `<p><strong>${R.name}</strong></p><h3>Table ${t}</h3><div class="qr"></div><p>📱 Scan to see the menu & order</p>`;
+    grid.appendChild(card);
+    new QRCode(card.querySelector(".qr"), { text: url, width: 170, height: 170, correctLevel: QRCode.CorrectLevel.M });
+  }
+}
+document.getElementById("make").onclick = make;
+make();
+</script>
+</body>
+</html>

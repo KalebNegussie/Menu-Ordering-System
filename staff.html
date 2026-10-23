@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff – Orders</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script src="menu.js"></script>
+<script src="store.js"></script>
+</head>
+<body>
+<header class="top">
+  <div><h1 id="rname"></h1><p class="sub" id="mode"></p></div>
+  <button id="sound" class="btn">🔔 Turn on sound</button>
+</header>
+<nav class="tabs" id="tabs">
+  <button data-v="cashier" class="on">Cashier<span class="badge" id="c-cashier" hidden></span></button>
+  <button data-v="kitchen">Kitchen<span class="badge" id="c-kitchen" hidden></span></button>
+  <button data-v="ready">Ready<span class="badge" id="c-ready" hidden></span></button>
+  <button data-v="done">Done</button>
+</nav>
+<div id="grid" class="grid"></div>
+
+<script>
+const R = window.RESTAURANT;
+const $ = (id) => document.getElementById(id);
+const money = (n) => R.currency + " " + Number(n).toLocaleString();
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+$("rname").textContent = R.name + " · Staff";
+$("mode").textContent = Store.live ? "● Live — orders sync across devices" : "Demo mode — this device only";
+
+const VIEWS = {
+  cashier: ["new"],
+  kitchen: ["approved", "preparing"],
+  ready: ["ready"],
+  done: ["served", "rejected"]
+};
+const ACTIONS = {
+  new: [["Approve", "approved", "ok"], ["Reject", "rejected", "bad"]],
+  approved: [["Start cooking", "preparing", "primary"]],
+  preparing: [["Mark ready", "ready", "ok"]],
+  ready: [["Served", "served", "primary"]]
+};
+const LABEL = { new: "Waiting for approval", approved: "Approved", preparing: "Cooking", ready: "Ready for pickup", served: "Served", rejected: "Rejected" };
+
+let view = "cashier", orders = [], seen = null, fresh = new Set(), soundOn = false, ctx = null;
+
+$("tabs").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  view = b.dataset.v;
+  [...$("tabs").children].forEach((x) => x.classList.toggle("on", x === b));
+  render();
+};
+
+$("sound").onclick = () => {
+  soundOn = !soundOn;
+  if (soundOn && !ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  $("sound").textContent = soundOn ? "🔔 Sound on" : "🔕 Turn on sound";
+  if (soundOn) beep();
+};
+function beep() {
+  if (!soundOn || !ctx) return;
+  [0, 0.25, 0.5].forEach((t) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.25, ctx.currentTime + t);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.2);
+    o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.2);
+  });
+}
+
+function ago(ts) {
+  const m = Math.floor((Date.now() - ts) / 60000);
+  return m < 1 ? "just now" : m < 60 ? m + " min ago" : Math.floor(m / 60) + " h ago";
+}
+
+function render() {
+  for (const v of ["cashier", "kitchen", "ready"]) {
+    const n = orders.filter((o) => VIEWS[v].includes(o.status)).length;
+    $("c-" + v).textContent = n; $("c-" + v).hidden = !n;
+  }
+  let list = orders.filter((o) => VIEWS[view].includes(o.status));
+  if (view !== "done") list = list.slice().reverse(); // oldest first for active queues
+  else list = list.slice(0, 40);
+  if (!list.length) { $("grid").innerHTML = `<div class="empty">No orders here right now.</div>`; return; }
+  $("grid").innerHTML = list.map((o) => `
+    <div class="order s-${o.status} ${fresh.has(o.id) ? "fresh" : ""}">
+      <div class="order-head"><h3>Table ${esc(o.table)}</h3><span class="muted">${ago(o.createdAt)}</span></div>
+      <div class="muted">${esc(o.orderNo)} · ${LABEL[o.status] || o.status}</div>
+      <ul>${o.items.map((it) => `<li><strong>${it.qty} ×</strong> ${esc(it.name)}</li>`).join("")}</ul>
+      ${o.note ? `<div class="note">📝 ${esc(o.note)}</div>` : ""}
+      <div class="row" style="margin-bottom:10px"><span class="muted">Total</span><strong>${money(o.total)}</strong></div>
+      <div class="actions">${(ACTIONS[o.status] || []).map(([t, s, c]) => `<button class="btn ${c}" data-id="${o.id}" data-s="${s}">${t}</button>`).join("")}</div>
+    </div>`).join("");
+}
+
+$("grid").onclick = async (e) => {
+  const b = e.target.closest("button[data-s]"); if (!b) return;
+  b.disabled = true;
+  try { await Store.setStatus(b.dataset.id, b.dataset.s); }
+  catch (err) { alert("Update failed: " + err.message); b.disabled = false; }
+};
+
+Store.onOrders((list) => {
+  if (seen) {
+    const newOnes = list.filter((o) => !seen.has(o.id) && o.status === "new");
+    if (newOnes.length) {
+      newOnes.forEach((o) => fresh.add(o.id));
+      beep();
+      document.title = "🔔 New order! – Staff";
+      setTimeout(() => { document.title = "Staff – Orders"; newOnes.forEach((o) => fresh.delete(o.id)); }, 8000);
+    }
+  }
+  seen = new Set(list.map((o) => o.id));
+  orders = list;
+  render();
+});
+setInterval(render, 30000); // refresh "x min ago"
+</script>
+</body>
+</html>

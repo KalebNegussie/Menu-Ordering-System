@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Menu</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script src="menu.js"></script>
+<script src="store.js"></script>
+</head>
+<body>
+<header class="top">
+  <div><h1 id="rname"></h1><p class="sub" id="tagline"></p></div>
+  <div class="pill" id="tablePill" hidden></div>
+</header>
+<div id="modeBanner" class="banner" hidden>Demo mode: orders only appear on this same device. Add Firebase in config.js to send orders to other devices.</div>
+
+<!-- Table picker (shown if the link has no ?table=) -->
+<section id="picker" class="center" hidden>
+  <div class="card">
+    <h2>Which table are you at?</h2>
+    <p class="muted">Tip: scanning the QR code on your table selects it automatically.</p>
+    <div class="tables" id="tableBtns"></div>
+  </div>
+</section>
+
+<!-- Menu -->
+<div id="menuView" hidden>
+  <nav id="cats" class="cats"></nav>
+  <main id="menu"></main>
+  <div id="cartBar" class="cartbar" hidden>
+    <button id="openCart" class="btn primary wide"></button>
+  </div>
+</div>
+
+<!-- Cart sheet -->
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head"><h2>Your order</h2><button id="closeCart" class="icon" aria-label="Close">✕</button></div>
+    <div id="cartItems"></div>
+    <label>Notes for the kitchen (optional)
+      <textarea id="note" rows="2" placeholder="e.g. no onions, extra spicy"></textarea>
+    </label>
+    <div class="row total"><span>Total</span><strong id="sheetTotal"></strong></div>
+    <button id="placeOrder" class="btn primary wide">Place order</button>
+  </div>
+</div>
+
+<!-- Order tracker -->
+<section id="tracker" class="center" hidden>
+  <div class="card">
+    <p class="muted" id="tTable"></p>
+    <div class="big" id="tNo"></div>
+    <ul class="steps" id="tSteps"></ul>
+  </div>
+  <div class="card" id="tItems"></div>
+  <button id="orderMore" class="btn primary wide">Order something else</button>
+</section>
+
+<script>
+const R = window.RESTAURANT, MENU = window.MENU;
+const $ = (id) => document.getElementById(id);
+const money = (n) => R.currency + " " + Number(n).toLocaleString();
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+document.title = R.name + " – Menu";
+$("rname").textContent = R.name;
+$("tagline").textContent = R.tagline;
+if (!Store.live) $("modeBanner").hidden = false;
+
+const params = new URLSearchParams(location.search);
+let table = params.get("table");
+const cart = {}; // itemId -> qty
+let unsub = null;
+
+function show(view) {
+  ["picker", "menuView", "tracker"].forEach((v) => ($(v).hidden = v !== view));
+  window.scrollTo(0, 0);
+}
+
+function setTable(t) {
+  table = String(t);
+  $("tablePill").textContent = "Table " + table;
+  $("tablePill").hidden = false;
+  const u = new URL(location.href); u.searchParams.set("table", table);
+  history.replaceState(null, "", u);
+}
+
+// ----- Table picker -----
+function renderPicker() {
+  $("tableBtns").innerHTML = Array.from({ length: R.tables }, (_, i) => `<button data-t="${i + 1}">${i + 1}</button>`).join("");
+  $("tableBtns").onclick = (e) => {
+    const t = e.target.dataset.t; if (!t) return;
+    setTable(t); startMenu();
+  };
+  show("picker");
+}
+
+// ----- Menu -----
+const cats = [...new Set(MENU.map((m) => m.cat))];
+function renderMenu() {
+  $("cats").innerHTML = cats.map((c, i) => `<button class="${i ? "" : "on"}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+  $("menu").innerHTML = cats.map((c) => `
+    <h2 class="cat-title" id="cat-${esc(c)}">${esc(c)}</h2>
+    ${MENU.filter((m) => m.cat === c).map((m) => `
+      <div class="item">
+        <div class="emoji">${m.emoji || "🍽️"}</div>
+        <div class="info"><h3>${esc(m.name)}</h3><p>${esc(m.desc || "")}</p><div class="price">${money(m.price)}</div></div>
+        <div class="qty" data-id="${m.id}"></div>
+      </div>`).join("")}`).join("");
+  $("cats").onclick = (e) => {
+    const c = e.target.dataset.c; if (!c) return;
+    [...$("cats").children].forEach((b) => b.classList.toggle("on", b === e.target));
+    document.getElementById("cat-" + c).scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  $("menu").onclick = qtyClick;
+  refreshQty();
+}
+
+function qtyClick(e) {
+  const b = e.target.closest("button[data-op]"); if (!b) return;
+  const id = b.parentElement.dataset.id;
+  cart[id] = Math.max(0, (cart[id] || 0) + (b.dataset.op === "+" ? 1 : -1));
+  if (!cart[id]) delete cart[id];
+  refreshQty(); if (!$("sheet").hidden) renderCart();
+}
+
+function qtyHTML(id) {
+  const q = cart[id] || 0;
+  return q ? `<button data-op="-" aria-label="Remove one">−</button><span>${q}</span><button class="add" data-op="+" aria-label="Add one">+</button>`
+           : `<button class="add" data-op="+" aria-label="Add">+</button>`;
+}
+
+function totals() {
+  let count = 0, total = 0;
+  for (const [id, q] of Object.entries(cart)) { const m = MENU.find((x) => x.id === id); count += q; total += m.price * q; }
+  return { count, total };
+}
+
+function refreshQty() {
+  document.querySelectorAll("#menu .qty").forEach((el) => (el.innerHTML = qtyHTML(el.dataset.id)));
+  const { count, total } = totals();
+  $("cartBar").hidden = count === 0;
+  $("openCart").textContent = `View order · ${count} item${count > 1 ? "s" : ""} · ${money(total)}`;
+}
+
+function renderCart() {
+  const ids = Object.keys(cart);
+  if (!ids.length) { $("sheet").hidden = true; return; }
+  $("cartItems").innerHTML = ids.map((id) => {
+    const m = MENU.find((x) => x.id === id);
+    return `<div class="line"><div><strong>${esc(m.name)}</strong><div class="muted">${money(m.price * cart[id])}</div></div><div class="qty" data-id="${id}">${qtyHTML(id)}</div></div>`;
+  }).join("");
+  $("sheetTotal").textContent = money(totals().total);
+}
+$("cartItems").onclick = qtyClick;
+$("openCart").onclick = () => { renderCart(); $("sheet").hidden = false; };
+$("closeCart").onclick = () => ($("sheet").hidden = true);
+$("sheet").onclick = (e) => { if (e.target === $("sheet")) $("sheet").hidden = true; };
+
+$("placeOrder").onclick = async () => {
+  const btn = $("placeOrder"); btn.disabled = true; btn.textContent = "Sending…";
+  try {
+    const items = Object.entries(cart).map(([id, qty]) => { const m = MENU.find((x) => x.id === id); return { id, name: m.name, price: m.price, qty }; });
+    const order = {
+      orderNo: "ORD-" + String(Date.now()).slice(-5),
+      table, items, total: totals().total,
+      note: $("note").value.trim().slice(0, 300)
+    };
+    const id = await Store.addOrder(order);
+    Object.keys(cart).forEach((k) => delete cart[k]);
+    $("note").value = ""; $("sheet").hidden = true; refreshQty();
+    try { localStorage.setItem("last_order", id); } catch (e) {}
+    track(id);
+  } catch (err) {
+    alert("Could not send your order. Please call a waiter.\n\n" + err.message);
+  } finally { btn.disabled = false; btn.textContent = "Place order"; }
+};
+
+// ----- Tracker -----
+const STEPS = [
+  ["new", "Order sent — waiting for cashier"],
+  ["approved", "Approved — sent to kitchen"],
+  ["preparing", "Being prepared"],
+  ["ready", "Ready — on its way to your table"],
+  ["served", "Served. Enjoy!"]
+];
+function track(id) {
+  show("tracker");
+  if (unsub) unsub();
+  unsub = Store.onOrder(id, (o) => {
+    if (!o) { $("tNo").textContent = "Order not found"; $("tSteps").innerHTML = ""; return; }
+    $("tTable").textContent = "Table " + o.table;
+    $("tNo").textContent = o.orderNo;
+    if (o.status === "rejected") {
+      $("tSteps").innerHTML = `<li class="now">Order not accepted — please ask a staff member.</li>`;
+    } else {
+      const idx = STEPS.findIndex((s) => s[0] === o.status);
+      $("tSteps").innerHTML = STEPS.map((s, i) => `<li class="${i < idx || (i === idx && s[0] === "served") ? "done" : i === idx ? "now" : ""}">${s[1]}</li>`).join("");
+    }
+    $("tItems").innerHTML = o.items.map((it) => `<div class="line"><span>${it.qty} × ${esc(it.name)}</span><span>${money(it.price * it.qty)}</span></div>`).join("")
+      + `<div class="row total" style="margin-top:12px"><span>Total</span><strong>${money(o.total)}</strong></div>`
+      + (o.note ? `<p class="muted">Note: ${esc(o.note)}</p>` : "");
+  });
+}
+$("orderMore").onclick = () => { if (unsub) unsub(); unsub = null; startMenu(); };
+
+function startMenu() { renderMenu(); show("menuView"); }
+
+// ----- Start -----
+if (table) setTable(table);
+let last = null; try { last = localStorage.getItem("last_order"); } catch (e) {}
+if (!table) renderPicker();
+else if (last && params.get("track") !== "0") {
+  // Resume tracking the customer's last order if it's still active
+  let stop = null, done = false;
+  stop = Store.onOrder(last, (o) => {
+    if (done) return; done = true;
+    setTimeout(() => stop && stop(), 0);
+    if (o && !["served", "rejected"].includes(o.status) && Date.now() - o.createdAt < 3 * 3600e3) track(last);
+    else startMenu();
+  });
+} else startMenu();
+</script>
+</body>
+</html>
