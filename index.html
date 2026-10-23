@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="config.js"></script>
 <script src="menu.js"></script>
 <script src="store.js"></script>
@@ -14,7 +15,7 @@
 <body>
 <header class="top">
   <div><h1 id="rname"></h1><p class="sub" id="tagline"></p></div>
-  <div class="pill" id="tablePill" hidden></div>
+  <div style="display:flex;gap:8px;align-items:center"><div class="pill" id="tablePill" hidden></div><button id="qrBtn" class="pill" style="border:0;color:inherit" aria-label="Show QR code">📱 QR</button></div>
 </header>
 <div id="modeBanner" class="banner" hidden>Demo mode: orders only appear on this same device. Add Firebase in config.js to send orders to other devices.</div>
 
@@ -46,6 +47,15 @@
     </label>
     <div class="row total"><span>Total</span><strong id="sheetTotal"></strong></div>
     <button id="placeOrder" class="btn primary wide">Place order</button>
+  </div>
+</div>
+
+<!-- QR popup -->
+<div id="qrSheet" class="sheet" hidden>
+  <div class="sheet-inner" style="text-align:center">
+    <div class="sheet-head"><h2 id="qrTitle">Scan to order</h2><button id="qrClose" class="icon" aria-label="Close">✕</button></div>
+    <div id="qrBox" style="display:inline-block;background:#fff;padding:14px;border-radius:12px"></div>
+    <p class="muted" id="qrHint">Point another phone's camera at this code.</p>
   </div>
 </div>
 
@@ -209,6 +219,17 @@ function track(id) {
   });
 }
 $("orderMore").onclick = () => { if (unsub) unsub(); unsub = null; startMenu(); };
+
+$("qrBtn").onclick = () => {
+  const u = new URL(location.href); u.search = ""; if (table) u.searchParams.set("table", table);
+  $("qrTitle").textContent = table ? "Table " + table + " — scan to order" : "Scan to order";
+  $("qrBox").innerHTML = "";
+  if (window.QRCode) new QRCode($("qrBox"), { text: u.toString(), width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M });
+  else $("qrBox").textContent = u.toString();
+  $("qrSheet").hidden = false;
+};
+$("qrClose").onclick = () => ($("qrSheet").hidden = true);
+$("qrSheet").onclick = (e) => { if (e.target === $("qrSheet")) $("qrSheet").hidden = true; };
 
 function startMenu() { renderMenu(); show("menuView"); }
 
