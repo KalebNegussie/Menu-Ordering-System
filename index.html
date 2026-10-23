@@ -107,7 +107,9 @@ function renderMenu() {
     <h2 class="cat-title" id="cat-${esc(c)}">${esc(c)}</h2>
     ${MENU.filter((m) => m.cat === c).map((m) => `
       <div class="item">
-        <div class="emoji">${m.emoji || "🍽️"}</div>
+        ${m.img
+          ? `<img class="thumb" src="${esc(m.img)}" alt="${esc(m.name)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;emoji&quot;>${m.emoji || "🍽️"}</div>'">`
+          : `<div class="emoji">${m.emoji || "🍽️"}</div>`}
         <div class="info"><h3>${esc(m.name)}</h3><p>${esc(m.desc || "")}</p><div class="price">${money(m.price)}</div></div>
         <div class="qty" data-id="${m.id}"></div>
       </div>`).join("")}`).join("");
