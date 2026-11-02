@@ -78,11 +78,15 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 
 document.title = R.name + " – Menu";
 $("rname").textContent = R.name;
+if (new URLSearchParams(location.search).get("kiosk") === "1") document.body.classList.add("kiosk");
 $("tagline").textContent = R.tagline;
 if (!Store.live) $("modeBanner").hidden = false;
 
 const params = new URLSearchParams(location.search);
 let table = params.get("table");
+// Tablet mode (?kiosk=1): shared device — never remembers a previous customer, resets after each order
+const KIOSK = params.get("kiosk") === "1";
+let kioskTimer = null;
 const cart = {}; // itemId -> qty
 let unsub = null;
 
@@ -110,23 +114,27 @@ function renderPicker() {
 }
 
 // ----- Menu -----
-const cats = [...new Set(MENU.map((m) => m.cat))];
+const CATS = window.CATEGORIES || [...new Set(MENU.map((m) => m.cat))].map((name) => ({ name }));
+const cats = CATS.map((c) => c.name).filter((c) => MENU.some((m) => m.cat === c));
 function renderMenu() {
-  $("cats").innerHTML = cats.map((c, i) => `<button class="${i ? "" : "on"}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
-  $("menu").innerHTML = cats.map((c) => `
-    <h2 class="cat-title" id="cat-${esc(c)}">${esc(c)}</h2>
-    ${MENU.filter((m) => m.cat === c).map((m) => `
-      <div class="item">
-        ${m.img
-          ? `<img class="thumb" src="${esc(m.img)}" alt="${esc(m.name)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;emoji&quot;>${m.emoji || "🍽️"}</div>'">`
-          : `<div class="emoji">${m.emoji || "🍽️"}</div>`}
-        <div class="info"><h3>${esc(m.name)}</h3><p>${esc(m.desc || "")}</p><div class="price">${money(m.price)}</div></div>
-        <div class="qty" data-id="${m.id}"></div>
-      </div>`).join("")}`).join("");
+  $("cats").innerHTML = cats.map((c, i) => `<button class="${i ? "" : "on"}" data-i="${i}">${esc(c)}</button>`).join("");
+  $("menu").innerHTML = cats.map((c, i) => {
+    const info = CATS.find((x) => x.name === c) || {};
+    return `<section class="cat" id="cat-${i}">
+      ${info.img ? `<div class="cat-banner"><img src="${esc(info.img)}" alt="${esc(c)}" loading="lazy" onerror="this.parentElement.remove()"><h2>${esc(c)}</h2></div>`
+                 : `<h2 class="cat-title">${esc(c)}</h2>`}
+      <div class="items">${MENU.filter((m) => m.cat === c).map((m) => `
+        <div class="item">
+          ${m.img ? `<img class="thumb" src="${esc(m.img)}" alt="${esc(m.name)}" loading="lazy" onerror="this.remove()">` : ""}
+          <div class="info"><h3>${esc(m.name)}</h3>${m.desc ? `<p>${esc(m.desc)}</p>` : ""}<div class="price">${money(m.price)}</div></div>
+          <div class="qty" data-id="${m.id}"></div>
+        </div>`).join("")}</div>
+    </section>`;
+  }).join("");
   $("cats").onclick = (e) => {
-    const c = e.target.dataset.c; if (!c) return;
+    const i = e.target.dataset.i; if (i == null) return;
     [...$("cats").children].forEach((b) => b.classList.toggle("on", b === e.target));
-    document.getElementById("cat-" + c).scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("cat-" + i).scrollIntoView({ behavior: "smooth", block: "start" });
   };
   $("menu").onclick = qtyClick;
   refreshQty();
@@ -185,8 +193,12 @@ $("placeOrder").onclick = async () => {
     const id = await Store.addOrder(order);
     Object.keys(cart).forEach((k) => delete cart[k]);
     $("note").value = ""; $("sheet").hidden = true; refreshQty();
-    try { localStorage.setItem("last_order", id); } catch (e) {}
+    if (!KIOSK) { try { localStorage.setItem("last_order", id); } catch (e) {} }
     track(id);
+    if (KIOSK) {
+      clearTimeout(kioskTimer);
+      kioskTimer = setTimeout(() => { if (unsub) unsub(); unsub = null; startMenu(); }, 25000);
+    }
   } catch (err) {
     alert("Could not send your order. Please call a waiter.\n\n" + err.message);
   } finally { btn.disabled = false; btn.textContent = "Place order"; }
@@ -218,7 +230,7 @@ function track(id) {
       + (o.note ? `<p class="muted">Note: ${esc(o.note)}</p>` : "");
   });
 }
-$("orderMore").onclick = () => { if (unsub) unsub(); unsub = null; startMenu(); };
+$("orderMore").onclick = () => { clearTimeout(kioskTimer); if (unsub) unsub(); unsub = null; startMenu(); };
 
 $("qrBtn").onclick = () => {
   const u = new URL(location.href); u.search = ""; if (table) u.searchParams.set("table", table);
@@ -237,7 +249,7 @@ function startMenu() { renderMenu(); show("menuView"); }
 if (table) setTable(table);
 let last = null; try { last = localStorage.getItem("last_order"); } catch (e) {}
 if (!table) renderPicker();
-else if (last && params.get("track") !== "0") {
+else if (last && !KIOSK && params.get("track") !== "0") {
   // Resume tracking the customer's last order if it's still active
   let stop = null, done = false;
   stop = Store.onOrder(last, (o) => {

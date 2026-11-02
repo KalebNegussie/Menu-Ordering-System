@@ -1,4 +1,4 @@
-# Demo Restaurant — QR Table Ordering
+# Shaylana Cafe & Restaurant — QR & Tablet Ordering
 
 Customers scan a QR code on their table → the menu opens on their phone → they order → the cashier approves → the kitchen cooks → the order is marked ready. The customer's phone shows live status the whole time.
 
@@ -11,6 +11,16 @@ Customers scan a QR code on their table → the menu opens on their phone → th
 | `menu.js` | **Edit this** — restaurant name, tables, menu items, prices |
 | `config.js` | **Edit this** — paste Firebase settings to go live |
 | `store.js`, `style.css` | Engine + styling (no need to touch) |
+
+## Links
+- Customer menu (QR codes open this): `https://kalebnegussie.github.io/Menu-Ordering-System/index.html?table=1`
+- **Tablet at a table:** `…/index.html?table=5&kiosk=1` (tablet mode: never shows the previous customer's order, resets to the menu 25 s after each order, hides the QR button)
+- **Staff screen** (cashier/kitchen): `…/staff.html`
+- Printable QR codes: `…/qr.html`
+
+## Editing the menu
+Open `menu.js` on GitHub → pencil icon → change a name or price → **Commit changes**. Live in about a minute.
+Category photos are in `images/` (cropped from the printed menu). Replace a file with a real photo using the same name to update it.
 
 ## 1. Put it on GitHub Pages
 1. Sign in at github.com → **New repository** → name it `demo-restaurant` → **Public** → Create.

@@ -1,30 +1,85 @@
-// ===== Edit your demo restaurant here =====
-// Photos: set img to a URL, or put a file in the images/ folder and use img: "images/firfir.jpg".
-// Items without img show their emoji instead.
+// ===== Shaylana Cafe & Restaurant — edit the menu here =====
+// To change a price: edit the number. To hide an item: delete its line.
+// Category photos live in the images/ folder. An item can also have its own photo: img: "images/xyz.jpg"
+
 window.RESTAURANT = {
-  name: "Demo Bistro",
-  tagline: "Cafe & Restaurant",
+  name: "Shaylana Cafe & Restaurant",
+  tagline: "Good Food • Good Vibes • Always",
   currency: "ETB",
   tables: 20
 };
 
-window.MENU = [
-  { id: "b1", cat: "Breakfast", emoji: "🍳", name: "Firfir", desc: "Shredded injera with spiced berbere sauce", price: 180 },
-  { id: "b2", img: "https://images.unsplash.com/photo-1621973569279-cd3b5c4bfd43?w=400&h=400&fit=crop&auto=format&q=70", cat: "Breakfast", emoji: "🥚", name: "Enqulal Firfir", desc: "Scrambled eggs with tomato, onion and chili", price: 200 },
-  { id: "b3", cat: "Breakfast", emoji: "🥣", name: "Chechebsa", desc: "Flatbread pieces with butter and berbere", price: 190 },
-
-  { id: "m1", img: "https://images.unsplash.com/photo-1559160582-eab6966b680f?w=400&h=400&fit=crop&auto=format&q=70", cat: "Mains", emoji: "🍕", name: "Vegetable Pizza", desc: "Tomato, mozzarella, peppers, olives", price: 450 },
-  { id: "m2", img: "https://images.unsplash.com/photo-1606149059549-6042addafc5a?w=400&h=400&fit=crop&auto=format&q=70", cat: "Mains", emoji: "🍔", name: "Fasting Burger", desc: "Plant-based patty, lettuce, tomato, fries", price: 380 },
-  { id: "m3", cat: "Mains", emoji: "🍛", name: "Shiro Tegabino", desc: "Chickpea stew served bubbling with injera", price: 260 },
-  { id: "m4", cat: "Mains", emoji: "🥩", name: "Tibs", desc: "Sautéed beef with onion, rosemary and pepper", price: 520 },
-  { id: "m5", img: "https://images.unsplash.com/photo-1673442635965-34f1b36d8944?w=400&h=400&fit=crop&auto=format&q=70", cat: "Mains", emoji: "🍝", name: "Spaghetti Bolognese", desc: "Classic meat sauce, parmesan", price: 350 },
-
-  { id: "s1", img: "https://images.unsplash.com/photo-1472926373053-51b220987527?w=400&h=400&fit=crop&auto=format&q=70", cat: "Salads", emoji: "🥗", name: "Mixed Salad", desc: "Greens, tomato, cucumber, house dressing", price: 220 },
-  { id: "s2", img: "https://images.unsplash.com/photo-1584799650072-ee2c8f73b811?w=400&h=400&fit=crop&auto=format&q=70", cat: "Salads", emoji: "🥙", name: "Tuna Salad", desc: "Tuna, egg, potato, greens", price: 300 },
-
-  { id: "d1", img: "https://images.unsplash.com/photo-1485808191679-5f86510681a2?w=400&h=400&fit=crop&auto=format&q=70", cat: "Drinks", emoji: "☕", name: "Macchiato", desc: "Espresso with steamed milk", price: 70 },
-  { id: "d2", cat: "Drinks", emoji: "🫖", name: "Tea", desc: "Black tea with spices", price: 40 },
-  { id: "d3", cat: "Drinks", emoji: "🥭", name: "Papaya Juice", desc: "Fresh blended papaya", price: 150 },
-  { id: "d4", cat: "Drinks", emoji: "🥑", name: "Spris Juice", desc: "Layered avocado, mango and papaya", price: 170 },
-  { id: "d5", cat: "Drinks", emoji: "💧", name: "Water 1L", desc: "Bottled water", price: 50 }
+window.CATEGORIES = [
+  { name: "Breakfast", img: "images/breakfast.jpg" },
+  { name: "Sandwiches", img: "images/sandwich.jpg" },
+  { name: "Pasta", img: "images/pasta.jpg" },
+  { name: "Traditional Foods", img: "images/traditional.jpg" },
+  { name: "Pizza", img: "images/pizza.jpg" },
+  { name: "Burgers & Sides", img: "images/burger.jpg" },
+  { name: "Chicken", img: "images/chicken.jpg" },
+  { name: "Salads", img: "images/salad.jpg" },
+  { name: "Hot Drinks", img: "images/hotdrinks.jpg" },
+  { name: "Juices", img: "images/juice.jpg" },
+  { name: "Shakes, Smoothies & Mojitos", img: "images/juice.jpg" },
+  { name: "Soft Drinks", img: "images/softdrinks.jpg" },
+  { name: "Extras" }
 ];
+
+const _m = [];
+const add = (cat, list) => list.forEach(([name, price], i) =>
+  _m.push({ id: cat.replace(/[^A-Za-z]/g, "").slice(0, 6).toLowerCase() + (i + 1), cat, name, price }));
+
+add("Breakfast", [
+  ["Fetira Normal", 300], ["Fetira Special", 400], ["Chechebsa Normal", 350], ["Chechebsa Special", 400],
+  ["Ful Normal", 350], ["Ful Special", 450], ["Scrambled Egg", 380], ["Omelette Normal", 450],
+  ["Omelette Special", 500], ["American Breakfast", 600]
+]);
+add("Sandwiches", [
+  ["Egg Sandwich", 380], ["Vegetable Sandwich", 420], ["Tuna Sandwich", 610], ["Club Sandwich", 690], ["Steak Sandwich", 700]
+]);
+add("Pasta", [
+  ["Linguine with Potato Sauce", 600], ["Spaghetti Veggie", 650], ["Fettuccine Alfredo Sauce", 800],
+  ["Lasagna Alfredo", 800], ["Linguine & Rigatoni", 800]
+]);
+add("Traditional Foods", [
+  ["Normal Firfir", 400], ["Tibs Firfir", 550], ["Kuanta Firfir", 650], ["Chikina Tibs", 800]
+]);
+add("Pizza", [
+  ["Vegetable Pizza", 600], ["Margarita Pizza", 680], ["Beef Pizza", 700], ["Tuna Pizza", 750],
+  ["Chicken Pizza", 800], ["Shaylana Special Pizza", 999], ["Family Pizza", 1200]
+]);
+add("Burgers & Sides", [
+  ["French Fries", 380], ["Beef Burger", 650], ["Cheese Burger", 690], ["Double Cheese Burger", 790],
+  ["Special Burger", 900], ["Triple Burger", 999], ["Family Burger", 1200]
+]);
+add("Chicken", [
+  ["Chicken Wrap", 650], ["Crispy Golden Chicken", 680], ["Chicken Wing", 800], ["Chicken Cutlet", 950],
+  ["Pan-Seared Chicken", 999], ["Chicken Leg Grill", 1100]
+]);
+add("Salads", [
+  ["Mixed Salad", 550], ["Beef Salad", 650], ["Tuna Salad", 650], ["Shaylana Special Salad", 700]
+]);
+add("Hot Drinks", [
+  ["Tea", 85], ["Espresso", 95], ["Coffee", 100], ["Ginger Tea", 100], ["Americano", 110], ["Peanut Tea", 120],
+  ["Tea Espresso", 120], ["Macchiato", 130], ["Milk", 150], ["Cappuccino", 180], ["Hot Chocolate", 180],
+  ["Iced Latte", 180], ["Special Tea", 180]
+]);
+add("Juices", [
+  ["Ananas (Pineapple) Juice", 300], ["Avocado Juice", 300], ["Banana Juice", 300], ["Mango Juice", 300],
+  ["Mixed Juice", 300], ["Watermelon Juice", 300], ["Orange Juice", 400], ["Strawberry Juice", 410],
+  ["Strawberry Juice with Milk", 470]
+]);
+add("Shakes, Smoothies & Mojitos", [
+  ["Ananas (Pineapple) Mojito", 350], ["Lemon Mojito", 350], ["Orange Mojito", 350], ["Strawberry Mojito", 350],
+  ["Telba Shake", 300], ["Banana Shake", 320], ["Avocado Smoothie", 350], ["Papaya Shake", 370],
+  ["Temer (Date) Shake", 370], ["Mango Shake", 390], ["Special Smoothie", 400]
+]);
+add("Soft Drinks", [
+  ["½ Water", 35], ["¾ Water", 50], ["1 Liter Water", 60], ["Soft Drink", 100], ["Ambo", 100]
+]);
+add("Extras", [
+  ["Bread", 20], ["Honey", 30], ["Ketchup", 30], ["Chilli Sauce", 40], ["Injera", 40], ["Egg", 50],
+  ["Mayonnaise", 70], ["Cheese", 100], ["Mozzarella Cheese", 100], ["BBQ Sauce", 100]
+]);
+
+window.MENU = _m;
