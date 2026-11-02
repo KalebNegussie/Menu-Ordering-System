@@ -87,6 +87,9 @@ if (!Store.live) $("modeBanner").hidden = false;
 
 const params = new URLSearchParams(location.search);
 let table = params.get("table");
+// Order code from the QR code / tablet link. Orders without the right code are refused by the database,
+// so people who only have the website link can't send prank orders.
+const ORDER_KEY = (params.get("k") || "").slice(0, 40);
 // Tablet mode (?kiosk=1): shared device — never remembers a previous customer, resets after each order
 const KIOSK = params.get("kiosk") === "1";
 let kioskTimer = null;
@@ -191,6 +194,7 @@ $("placeOrder").onclick = async () => {
     const order = {
       orderNo: "ORD-" + String(Date.now()).slice(-5),
       table: table || $("who").value.trim().slice(0, 30) || "Walk-in", items, total: totals().total,
+      key: ORDER_KEY,
       note: $("note").value.trim().slice(0, 300)
     };
     const id = await Store.addOrder(order);
@@ -203,7 +207,10 @@ $("placeOrder").onclick = async () => {
       kioskTimer = setTimeout(() => { if (unsub) unsub(); unsub = null; startMenu(); }, 25000);
     }
   } catch (err) {
-    alert("Could not send your order. Please call a waiter.\n\n" + err.message);
+    const denied = /permission|insufficient/i.test((err.code || "") + " " + (err.message || ""));
+    alert(denied
+      ? "This order couldn't be sent.\n\nPlease scan the QR code on your table to order, or ask a staff member."
+      : "Could not send your order. Please check your internet or call a waiter.\n\n" + err.message);
   } finally { btn.disabled = false; btn.textContent = "Place order"; }
 };
 
@@ -236,7 +243,7 @@ function track(id) {
 $("orderMore").onclick = () => { clearTimeout(kioskTimer); if (unsub) unsub(); unsub = null; startMenu(); };
 
 $("qrBtn").onclick = () => {
-  const u = new URL(location.href); u.search = ""; if (table) u.searchParams.set("table", table);
+  const u = new URL(location.href); u.search = ""; if (table) u.searchParams.set("table", table); if (ORDER_KEY) u.searchParams.set("k", ORDER_KEY);
   $("qrTitle").textContent = table ? "Table " + table + " — scan to order" : "Scan to order";
   $("qrBox").innerHTML = "";
   if (window.QRCode) new QRCode($("qrBox"), { text: u.toString(), width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M });

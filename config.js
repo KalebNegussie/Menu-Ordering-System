@@ -8,3 +8,7 @@ window.FIREBASE_CONFIG = {
   messagingSenderId: "456537951184",
   appId: "1:456537951184:web:fa203a7e1fbeb0ec7807d5"
 };
+
+// Emails allowed to open the owner dashboard (owner.html). Staff logins are refused there.
+// Example: ["shaylana.cafe@gmail.com"]
+window.OWNER_EMAILS = [];

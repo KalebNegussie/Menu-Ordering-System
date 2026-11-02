@@ -41,6 +41,19 @@
       return () => listeners.delete(f);
     },
 
+    // Orders created between two times (ms), newest first — used by the owner dashboard
+    onRange(start, end, cb, onErr) {
+      if (live) {
+        return db.collection("orders").where("createdAt", ">=", start).where("createdAt", "<", end)
+          .orderBy("createdAt", "desc").limit(3000)
+          .onSnapshot((s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+                      (err) => { console.error(err); onErr && onErr(err); });
+      }
+      const f = (a) => cb(a.filter((o) => o.createdAt >= start && o.createdAt < end).sort((x, y) => y.createdAt - x.createdAt));
+      listeners.add(f); f(read());
+      return () => listeners.delete(f);
+    },
+
     onOrder(id, cb) {
       if (live) {
         return db.collection("orders").doc(id)

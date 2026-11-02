@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Owner Dashboard</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="config.js"></script>
+<script src="menu.js"></script>
+<script src="store.js"></script>
+<style>
+  :root { --chart: #2a55a8; --grid: #e4dfd4; }
+  @media (prefers-color-scheme: dark) { :root { --chart: #6f93d6; --grid: #35322a; } }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px 60px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 0; }
+  .filters button { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; padding: 8px 14px; }
+  .filters button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .filters input { width: auto; margin: 0; padding: 7px 10px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .kpi .lbl { color: var(--muted); font-size: .85rem; }
+  .kpi .val { font-size: 1.7rem; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi.hero .val { font-size: 2.2rem; }
+  .kpi .sub { color: var(--muted); font-size: .8rem; margin-top: 2px; }
+  .panels { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 900px) { .panels.two { grid-template-columns: 1.4fr 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
+  .panel h2 { font-size: 1.05rem; margin-bottom: 2px; }
+  .panel .note { color: var(--muted); font-size: .82rem; margin: 0 0 12px; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: 220px; overflow: visible; }
+  .chart .ax { fill: var(--muted); font-size: 11px; }
+  .chart .gl { stroke: var(--grid); stroke-width: 1; }
+  .chart .bar { fill: var(--chart); }
+  .chart .hit { fill: transparent; cursor: default; }
+  .chart .hit:hover + .bar, .chart g:hover .bar { opacity: .8; }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); padding: 6px 9px; border-radius: 8px; font-size: .8rem; white-space: nowrap; transform: translate(-50%, -110%); }
+  .hbar { display: grid; grid-template-columns: minmax(90px, 40%) 1fr auto; gap: 8px; align-items: center; padding: 5px 0; font-size: .9rem; }
+  .hbar .track { height: 12px; }
+  .hbar .fill { height: 12px; background: var(--chart); border-radius: 0 4px 4px 0; min-width: 2px; }
+  .hbar .num { font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; width: 92px; }
+  #best .hbar .num { width: 150px; }
+  @media (max-width: 520px) { #best .hbar .num { width: 118px; font-size: .8rem; } }
+  .hbar .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  table.hist { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  table.hist th, table.hist td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.hist th { color: var(--muted); font-weight: 600; font-size: .8rem; }
+  table.hist td.r, table.hist th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; }
+  .st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .78rem; border: 1px solid var(--line); white-space: nowrap; }
+  .st.rejected { color: var(--bad); border-color: var(--bad); }
+  .st.new { color: #8a5a00; border-color: #d9a521; }
+  .empty-p { color: var(--muted); padding: 18px 0; text-align: center; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .btn.sm { padding: 8px 12px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div><h1 id="rname"></h1><p class="sub" id="who"></p></div>
+  <button id="signOut" class="btn" hidden>Sign out</button>
+</header>
+
+<section id="login" class="center" hidden>
+  <form class="card" id="loginForm">
+    <h2>Owner sign in</h2>
+    <p class="muted">Sales and order history. Owner only.</p>
+    <label>Email <input id="email" type="email" autocomplete="username" required></label>
+    <label>Password <input id="password" type="password" autocomplete="current-password" required></label>
+    <p id="loginErr" style="color:var(--bad);min-height:1.2em;margin:0 0 10px"></p>
+    <button class="btn primary wide" id="loginBtn">Sign in</button>
+  </form>
+</section>
+
+<div id="app" class="wrap" hidden>
+  <div class="filters" id="filters">
+    <button data-r="today" class="on">Today</button>
+    <button data-r="yesterday">Yesterday</button>
+    <button data-r="7d">Last 7 days</button>
+    <button data-r="month">This month</button>
+    <input type="date" id="day" aria-label="Pick a day">
+  </div>
+
+  <div class="kpis">
+    <div class="kpi hero"><div class="lbl">Sales</div><div class="val" id="kSales">–</div><div class="sub">Confirmed orders only</div></div>
+    <div class="kpi"><div class="lbl">Orders</div><div class="val" id="kOrders">–</div><div class="sub" id="kOrdersSub"></div></div>
+    <div class="kpi"><div class="lbl">Average order</div><div class="val" id="kAvg">–</div></div>
+    <div class="kpi"><div class="lbl">Rejected</div><div class="val" id="kRej">–</div><div class="sub">Not cooked, not counted</div></div>
+  </div>
+
+  <div class="panels two">
+    <div class="panel">
+      <h2 id="tTitle">Sales by hour</h2>
+      <p class="note" id="tNote">ETB, confirmed orders</p>
+      <div class="chart" id="trend"></div>
+    </div>
+    <div class="panel">
+      <h2>Sales by category</h2>
+      <p class="note">ETB, confirmed orders</p>
+      <div id="cats"></div>
+    </div>
+  </div>
+
+  <div class="panels" style="margin-top:14px">
+    <div class="panel">
+      <h2>Best sellers</h2>
+      <p class="note">Top 10 items by quantity sold</p>
+      <div id="best"></div>
+    </div>
+    <div class="panel">
+      <div class="toolbar">
+        <div><h2>Order history</h2><p class="note" style="margin:0">Every order in this period, newest first</p></div>
+        <button class="btn sm" id="csv">Download CSV</button>
+      </div>
+      <div class="scroll"><table class="hist"><thead><tr>
+        <th>Time</th><th>Order</th><th>Table / name</th><th>Items</th><th class="r">Total</th><th>Status</th>
+      </tr></thead><tbody id="hist"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const R = window.RESTAURANT, MENU = window.MENU || [];
+const $ = (id) => document.getElementById(id);
+const money = (n) => R.currency + " " + Math.round(n).toLocaleString();
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const SOLD = ["approved", "preparing", "ready", "served"];
+const LABEL = { new: "Waiting", approved: "Confirmed", preparing: "Cooking", ready: "Ready", served: "Served", rejected: "Rejected" };
+const catOf = Object.fromEntries(MENU.map((m) => [m.id, m.cat]));
+$("rname").textContent = R.name + " · Owner";
+
+// ----- Date ranges -----
+const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+function rangeFor(kind, dayStr) {
+  const today = startOfDay(new Date()), DAY = 864e5;
+  if (kind === "day") { const d = startOfDay(dayStr + "T00:00"); return { s: +d, e: +d + DAY, days: 1, label: d.toDateString() }; }
+  if (kind === "yesterday") return { s: +today - DAY, e: +today, days: 1 };
+  if (kind === "7d") return { s: +today - 6 * DAY, e: +today + DAY, days: 7 };
+  if (kind === "month") { const m = new Date(today.getFullYear(), today.getMonth(), 1); return { s: +m, e: +today + DAY, days: Math.round((+today + DAY - m) / DAY) }; }
+  return { s: +today, e: +today + DAY, days: 1 };
+}
+let range = rangeFor("today"), orders = [], stop = null;
+
+$("filters").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  [...$("filters").querySelectorAll("button")].forEach((x) => x.classList.toggle("on", x === b));
+  $("day").value = ""; range = rangeFor(b.dataset.r); listen();
+};
+$("day").onchange = () => {
+  if (!$("day").value) return;
+  [...$("filters").querySelectorAll("button")].forEach((x) => x.classList.remove("on"));
+  range = rangeFor("day", $("day").value); listen();
+};
+
+function listen() {
+  if (stop) stop();
+  $("hist").innerHTML = `<tr><td colspan="6" class="empty-p">Loading…</td></tr>`;
+  stop = Store.onRange(range.s, range.e, (list) => { orders = list; render(); },
+    (err) => { $("hist").innerHTML = `<tr><td colspan="6" class="empty-p">Could not load orders: ${esc(err.message)}</td></tr>`; });
+}
+
+// ----- Render -----
+function render() {
+  const sold = orders.filter((o) => SOLD.includes(o.status));
+  const sales = sold.reduce((a, o) => a + (o.total || 0), 0);
+  const waiting = orders.filter((o) => o.status === "new").length;
+  $("kSales").textContent = money(sales);
+  $("kOrders").textContent = sold.length.toLocaleString();
+  $("kOrdersSub").textContent = waiting ? waiting + " waiting for cashier" : "Confirmed";
+  $("kAvg").textContent = sold.length ? money(sales / sold.length) : "–";
+  $("kRej").textContent = orders.filter((o) => o.status === "rejected").length;
+  renderTrend(sold); renderCats(sold); renderBest(sold); renderHist();
+}
+
+function niceMax(v) { if (v <= 0) return 1000; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p; return 10 * p; }
+const tick = (v) => v >= 10000 ? Math.round(v / 1000) + "K" : v.toLocaleString();
+
+function renderTrend(sold) {
+  let buckets;
+  if (range.days === 1) {
+    $("tTitle").textContent = "Sales by hour"; $("tNote").textContent = "ETB, confirmed orders · 6am–11pm";
+    buckets = Array.from({ length: 18 }, (_, i) => ({ k: i + 6, label: ((i + 6) % 12 || 12) + ((i + 6) < 12 ? "a" : "p"), v: 0 }));
+    sold.forEach((o) => { const h = new Date(o.createdAt).getHours(); const b = buckets.find((x) => x.k === h) || (h < 6 ? buckets[0] : buckets[buckets.length - 1]); b.v += o.total || 0; });
+  } else {
+    $("tTitle").textContent = "Sales by day"; $("tNote").textContent = "ETB, confirmed orders";
+    buckets = Array.from({ length: range.days }, (_, i) => { const d = new Date(range.s + i * 864e5); return { k: startOfDay(d).getTime(), label: (d.getMonth() + 1) + "/" + d.getDate(), v: 0 }; });
+    sold.forEach((o) => { const k = startOfDay(new Date(o.createdAt)).getTime(); const b = buckets.find((x) => x.k === k); if (b) b.v += o.total || 0; });
+  }
+  const W = 640, H = 220, L = 44, B = 22, T = 10, max = niceMax(Math.max(...buckets.map((b) => b.v)));
+  const bw = (W - L) / buckets.length, barW = Math.min(24, bw * 0.62), y = (v) => T + (H - T - B) * (1 - v / max);
+  const every = Math.ceil(buckets.length / 12);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc($("tTitle").textContent)}">`;
+  for (let i = 0; i <= 4; i++) { const v = max * i / 4; svg += `<line class="gl" x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${tick(v)}</text>`; }
+  buckets.forEach((b, i) => {
+    const cx = L + bw * i + bw / 2, h = (H - T - B) - (y(b.v) - T), x = cx - barW / 2, top = y(b.v);
+    const r = Math.min(4, h / 2);
+    const path = h > 0 ? `M${x},${H - B} V${top + r} Q${x},${top} ${x + r},${top} H${x + barW - r} Q${x + barW},${top} ${x + barW},${top + r} V${H - B} Z` : "";
+    svg += `<g data-l="${esc(b.label)}" data-v="${b.v}"><rect class="hit" x="${L + bw * i}" y="${T}" width="${bw}" height="${H - T - B}"/>${path ? `<path class="bar" d="${path}"/>` : ""}</g>`;
+    if (i % every === 0) svg += `<text class="ax" x="${cx}" y="${H - 6}" text-anchor="middle">${esc(b.label)}</text>`;
+  });
+  svg += `</svg><div class="tip" id="tip" hidden></div>`;
+  $("trend").innerHTML = svg;
+  const tip = $("tip"), box = $("trend");
+  box.querySelectorAll("g[data-l]").forEach((g) => {
+    g.onmouseenter = g.ontouchstart = () => {
+      const r = g.querySelector(".hit").getBoundingClientRect(), br = box.getBoundingClientRect();
+      tip.textContent = g.dataset.l + " · " + money(+g.dataset.v); tip.hidden = false;
+      tip.style.left = (r.left - br.left + r.width / 2) + "px"; tip.style.top = (r.top - br.top + 30) + "px";
+    };
+    g.onmouseleave = () => (tip.hidden = true);
+  });
+}
+
+function hbars(rows, fmt) {
+  if (!rows.length) return `<div class="empty-p">No confirmed orders in this period.</div>`;
+  const max = Math.max(...rows.map((r) => r.v)) || 1;
+  return rows.map((r) => `<div class="hbar"><div class="name" title="${esc(r.name)}">${esc(r.name)}</div>
+    <div class="track"><div class="fill" style="width:${(r.v / max * 100).toFixed(1)}%"></div></div><div class="num">${fmt(r)}</div></div>`).join("");
+}
+function renderCats(sold) {
+  const m = {};
+  sold.forEach((o) => (o.items || []).forEach((it) => { const c = catOf[it.id] || "Other"; m[c] = (m[c] || 0) + it.price * it.qty; }));
+  $("cats").innerHTML = hbars(Object.entries(m).map(([name, v]) => ({ name, v })).sort((a, b) => b.v - a.v), (r) => money(r.v));
+}
+function renderBest(sold) {
+  const m = {};
+  sold.forEach((o) => (o.items || []).forEach((it) => { const x = m[it.name] || (m[it.name] = { name: it.name, v: 0, rev: 0 }); x.v += it.qty; x.rev += it.price * it.qty; }));
+  $("best").innerHTML = hbars(Object.values(m).sort((a, b) => b.v - a.v).slice(0, 10), (r) => r.v + " sold · " + money(r.rev));
+}
+function renderHist() {
+  if (!orders.length) { $("hist").innerHTML = `<tr><td colspan="6" class="empty-p">No orders in this period.</td></tr>`; return; }
+  $("hist").innerHTML = orders.slice(0, 500).map((o) => {
+    const t = new Date(o.createdAt);
+    const when = (range.days > 1 ? (t.getMonth() + 1) + "/" + t.getDate() + " " : "") + t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const who = /^\d+$/.test(o.table) ? "Table " + o.table : o.table;
+    return `<tr><td>${esc(when)}</td><td>${esc(o.orderNo)}</td><td>${esc(who)}</td>
+      <td>${(o.items || []).map((it) => esc(it.qty + "× " + it.name)).join("<br>")}${o.note ? `<br><span class="muted">📝 ${esc(o.note)}</span>` : ""}</td>
+      <td class="r">${money(o.total || 0)}</td><td><span class="st ${esc(o.status)}">${esc(LABEL[o.status] || o.status)}</span></td></tr>`;
+  }).join("");
+}
+
+$("csv").onclick = () => {
+  const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+  const rows = [["Date", "Time", "Order", "Table/Name", "Items", "Total (" + R.currency + ")", "Status", "Note"]].concat(
+    orders.map((o) => { const t = new Date(o.createdAt); return [t.toLocaleDateString(), t.toLocaleTimeString(), o.orderNo, o.table,
+      (o.items || []).map((it) => it.qty + "x " + it.name).join("; "), o.total, LABEL[o.status] || o.status, o.note || ""]; }));
+  const blob = new Blob(["﻿" + rows.map((r) => r.map(q).join(",")).join("\n")], { type: "text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "shaylana-orders-" + new Date(range.s).toISOString().slice(0, 10) + ".csv"; a.click();
+};
+
+// ----- Owner login -----
+const OWNERS = (window.OWNER_EMAILS || []).map((e) => e.toLowerCase());
+if (Store.live && window.firebase && firebase.auth) {
+  const auth = firebase.auth();
+  auth.onAuthStateChanged((user) => {
+    const ok = !!user && (!OWNERS.length || OWNERS.includes((user.email || "").toLowerCase()));
+    if (user && !ok) { $("loginErr").textContent = "This login is for staff. The dashboard is owner only."; auth.signOut(); return; }
+    $("login").hidden = ok; $("app").hidden = !ok; $("signOut").hidden = !ok;
+    $("who").textContent = ok ? "Signed in as " + user.email : "";
+    if (ok) listen(); else { if (stop) stop(); stop = null; }
+  });
+  $("loginForm").onsubmit = async (e) => {
+    e.preventDefault(); $("loginErr").textContent = ""; $("loginBtn").disabled = true;
+    try { await auth.signInWithEmailAndPassword($("email").value.trim(), $("password").value); $("password").value = ""; }
+    catch (err) { $("loginErr").textContent = /invalid-credential|wrong-password|user-not-found|invalid-email/.test(err.code || "") ? "Wrong email or password." : "Could not sign in: " + (err.message || err.code); }
+    finally { $("loginBtn").disabled = false; }
+  };
+  $("signOut").onclick = () => auth.signOut();
+} else {
+  $("app").hidden = false; $("who").textContent = "Demo mode"; listen();
+}
+</script>
+</body>
+</html>
