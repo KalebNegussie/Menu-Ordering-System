@@ -14,7 +14,7 @@ Customers scan a QR code on their table → the menu opens on their phone → th
 
 ## Links
 - Customer menu (QR codes open this): `https://kalebnegussie.github.io/Menu-Ordering-System/index.html?table=1`
-- **Tablet at a table:** `…/index.html?table=5&kiosk=1` (tablet mode: never shows the previous customer's order, resets to the menu 25 s after each order, hides the QR button)
+- **Tablets:** just open `…/index.html` (no table setup needed; the customer types a table number or name at checkout). Optional: add `?kiosk=1` (tablet mode: never shows the previous customer's order, resets to the menu 25 s after each order, hides the QR button)
 - **Staff screen** (cashier/kitchen): `…/staff.html`
 - Printable QR codes: `…/qr.html`
 

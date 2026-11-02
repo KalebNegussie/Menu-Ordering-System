@@ -42,6 +42,9 @@
   <div class="sheet-inner">
     <div class="sheet-head"><h2>Your order</h2><button id="closeCart" class="icon" aria-label="Close">✕</button></div>
     <div id="cartItems"></div>
+    <label id="whoWrap">Table number or your name
+      <input id="who" maxlength="30" placeholder="e.g. 5 or Abebe">
+    </label>
     <label>Notes for the kitchen (optional)
       <textarea id="note" rows="2" placeholder="e.g. no onions, extra spicy"></textarea>
     </label>
@@ -177,7 +180,7 @@ function renderCart() {
   $("sheetTotal").textContent = money(totals().total);
 }
 $("cartItems").onclick = qtyClick;
-$("openCart").onclick = () => { renderCart(); $("sheet").hidden = false; };
+$("openCart").onclick = () => { renderCart(); $("whoWrap").hidden = !!table; $("sheet").hidden = false; };
 $("closeCart").onclick = () => ($("sheet").hidden = true);
 $("sheet").onclick = (e) => { if (e.target === $("sheet")) $("sheet").hidden = true; };
 
@@ -187,12 +190,12 @@ $("placeOrder").onclick = async () => {
     const items = Object.entries(cart).map(([id, qty]) => { const m = MENU.find((x) => x.id === id); return { id, name: m.name, price: m.price, qty }; });
     const order = {
       orderNo: "ORD-" + String(Date.now()).slice(-5),
-      table, items, total: totals().total,
+      table: table || $("who").value.trim().slice(0, 30) || "Walk-in", items, total: totals().total,
       note: $("note").value.trim().slice(0, 300)
     };
     const id = await Store.addOrder(order);
     Object.keys(cart).forEach((k) => delete cart[k]);
-    $("note").value = ""; $("sheet").hidden = true; refreshQty();
+    $("note").value = ""; $("who").value = ""; $("sheet").hidden = true; refreshQty();
     if (!KIOSK) { try { localStorage.setItem("last_order", id); } catch (e) {} }
     track(id);
     if (KIOSK) {
@@ -217,7 +220,7 @@ function track(id) {
   if (unsub) unsub();
   unsub = Store.onOrder(id, (o) => {
     if (!o) { $("tNo").textContent = "Order not found"; $("tSteps").innerHTML = ""; return; }
-    $("tTable").textContent = "Table " + o.table;
+    $("tTable").textContent = /^\d+$/.test(o.table) ? "Table " + o.table : o.table;
     $("tNo").textContent = o.orderNo;
     if (o.status === "rejected") {
       $("tSteps").innerHTML = `<li class="now">Order not accepted — please ask a staff member.</li>`;
@@ -248,7 +251,7 @@ function startMenu() { renderMenu(); show("menuView"); }
 // ----- Start -----
 if (table) setTable(table);
 let last = null; try { last = localStorage.getItem("last_order"); } catch (e) {}
-if (!table) renderPicker();
+if (!table) startMenu();
 else if (last && !KIOSK && params.get("track") !== "0") {
   // Resume tracking the customer's last order if it's still active
   let stop = null, done = false;
