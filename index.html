@@ -194,7 +194,6 @@ $("placeOrder").onclick = async () => {
     const order = {
       orderNo: "ORD-" + String(Date.now()).slice(-5),
       table: table || $("who").value.trim().slice(0, 30) || "Walk-in", items, total: totals().total,
-      key: ORDER_KEY,
       note: $("note").value.trim().slice(0, 300)
     };
     const id = await Store.addOrder(order);
