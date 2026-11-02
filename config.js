@@ -1,16 +1,10 @@
-// ===== Firebase settings =====
-// Leave as null for DEMO MODE (orders only show on the same device/browser).
-// To make orders reach other devices, paste your Firebase web config here.
-// See README.md, step 5.
-//
-// Example:
-// window.FIREBASE_CONFIG = {
-//   apiKey: "AIza...",
-//   authDomain: "your-project.firebaseapp.com",
-//   projectId: "your-project",
-//   storageBucket: "your-project.appspot.com",
-//   messagingSenderId: "123456789",
-//   appId: "1:123456789:web:abc123"
-// };
-
-window.FIREBASE_CONFIG = null;
+// ===== Firebase settings (Shaylana) =====
+// This config is meant to be public — security is enforced by the Firestore rules + staff login.
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDvhKaecztfBG8ElixW81QrpsTj3rhJAsI",
+  authDomain: "shaylana-menu.firebaseapp.com",
+  projectId: "shaylana-menu",
+  storageBucket: "shaylana-menu.firebasestorage.app",
+  messagingSenderId: "456537951184",
+  appId: "1:456537951184:web:fa203a7e1fbeb0ec7807d5"
+};

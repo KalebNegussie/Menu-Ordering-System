@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="config.js"></script>
 <script src="menu.js"></script>
 <script src="store.js"></script>
@@ -14,8 +15,25 @@
 <body>
 <header class="top">
   <div><h1 id="rname"></h1><p class="sub" id="mode"></p></div>
-  <button id="sound" class="btn">🔔 Turn on sound</button>
+  <div style="display:flex;gap:8px">
+    <button id="sound" class="btn">🔔 Turn on sound</button>
+    <button id="signOut" class="btn" hidden>Sign out</button>
+  </div>
 </header>
+
+<!-- Staff login (shown when Firebase is connected and nobody is signed in) -->
+<section id="login" class="center" hidden>
+  <form class="card" id="loginForm">
+    <h2>Staff sign in</h2>
+    <p class="muted">Only Shaylana staff can see and manage orders.</p>
+    <label>Email <input id="email" type="email" autocomplete="username" required></label>
+    <label>Password <input id="password" type="password" autocomplete="current-password" required></label>
+    <p id="loginErr" style="color:var(--bad);min-height:1.2em;margin:0 0 10px"></p>
+    <button class="btn primary wide" id="loginBtn">Sign in</button>
+  </form>
+</section>
+
+<div id="app">
 <nav class="tabs" id="tabs">
   <button data-v="cashier" class="on">Cashier<span class="badge" id="c-cashier" hidden></span></button>
   <button data-v="kitchen">Kitchen<span class="badge" id="c-kitchen" hidden></span></button>
@@ -23,6 +41,7 @@
   <button data-v="done">Done</button>
 </nav>
 <div id="grid" class="grid"></div>
+</div>
 
 <script>
 const R = window.RESTAURANT;
@@ -105,7 +124,11 @@ $("grid").onclick = async (e) => {
   catch (err) { alert("Update failed: " + err.message); b.disabled = false; }
 };
 
-Store.onOrders((list) => {
+let stopOrders = null;
+function startOrders() {
+  if (stopOrders) return;
+  seen = null;
+  stopOrders = Store.onOrders((list) => {
   if (seen) {
     const newOnes = list.filter((o) => !seen.has(o.id) && o.status === "new");
     if (newOnes.length) {
@@ -118,7 +141,40 @@ Store.onOrders((list) => {
   seen = new Set(list.map((o) => o.id));
   orders = list;
   render();
-});
+  });
+}
+function stopOrderFeed() { if (stopOrders) { stopOrders(); stopOrders = null; } orders = []; render(); }
+
+// ----- Staff login -----
+if (Store.live && window.firebase && firebase.auth) {
+  const auth = firebase.auth();
+  $("app").hidden = true;
+  auth.onAuthStateChanged((user) => {
+    $("login").hidden = !!user;
+    $("app").hidden = !user;
+    $("signOut").hidden = !user;
+    if (user) startOrders(); else stopOrderFeed();
+  });
+  $("loginForm").onsubmit = async (e) => {
+    e.preventDefault();
+    $("loginErr").textContent = ""; $("loginBtn").disabled = true; $("loginBtn").textContent = "Signing in…";
+    try {
+      await auth.signInWithEmailAndPassword($("email").value.trim(), $("password").value);
+      $("password").value = "";
+    } catch (err) {
+      const c = err.code || "";
+      $("loginErr").textContent =
+        /invalid-credential|wrong-password|user-not-found|invalid-email/.test(c) ? "Wrong email or password." :
+        /too-many-requests/.test(c) ? "Too many tries. Wait a few minutes and try again." :
+        /network/.test(c) ? "No internet connection." :
+        /api-key/.test(c) ? "Setup problem: the Firebase API key in config.js is wrong." :
+        "Could not sign in: " + (err.message || c);
+    } finally { $("loginBtn").disabled = false; $("loginBtn").textContent = "Sign in"; }
+  };
+  $("signOut").onclick = () => auth.signOut();
+} else {
+  startOrders(); // demo mode (no Firebase): no login
+}
 setInterval(render, 30000); // refresh "x min ago"
 </script>
 </body>

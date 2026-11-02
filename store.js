@@ -34,7 +34,7 @@
       if (live) {
         return db.collection("orders").orderBy("createdAt", "desc").limit(150)
           .onSnapshot((s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                      (err) => { console.error(err); alert("Firebase error: " + err.message); });
+                      (err) => { console.error(err); alert(err.code === "permission-denied" ? "Not allowed to see orders. Please sign in again." : "Connection problem: " + err.message); });
       }
       const f = (a) => cb([...a].sort((x, y) => y.createdAt - x.createdAt));
       listeners.add(f); f(read());
@@ -44,7 +44,7 @@
     onOrder(id, cb) {
       if (live) {
         return db.collection("orders").doc(id)
-          .onSnapshot((d) => cb(d.exists ? { id: d.id, ...d.data() } : null));
+          .onSnapshot((d) => cb(d.exists ? { id: d.id, ...d.data() } : null), (err) => { console.error(err); cb(null); });
       }
       const f = (a) => cb(a.find((o) => o.id === id) || null);
       listeners.add(f); f(read());
